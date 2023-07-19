@@ -53,6 +53,9 @@ class GesturesController: NSObject, FLT_SETTINGSGesturesSettingsInterface, UIGes
         if let quickZoomEnabled = settings.quickZoomEnabled {
             mapView.gestures.options.quickZoomEnabled = quickZoomEnabled.boolValue
         }
+        if let pinchZoomEnabled = settings.pinchToZoomEnabled {
+            mapView.gestures.options.pinchZoomEnabled = pinchZoomEnabled.boolValue
+        }
         switch settings.scrollMode {
         case .HORIZONTAL:
             mapView.gestures.options.panMode = PanMode.horizontal
@@ -104,13 +107,22 @@ class GesturesController: NSObject, FLT_SETTINGSGesturesSettingsInterface, UIGes
         return settings
     }
 
-    func setup(messenger: FlutterBinaryMessenger) {
-        mapView.addGestureRecognizer(UILongPressGestureRecognizer(target: self, action: #selector(onMapLongTap)))
+    func addListeners(messenger: FlutterBinaryMessenger) {
+        removeListeners()
+        gestureRecognizer = UILongPressGestureRecognizer(target: self, action: #selector(onMapLongTap))
+        mapView.addGestureRecognizer(gestureRecognizer!)
         mapView.gestures.delegate = self
         onGestureListener = FLT_GESTURESGestureListener(binaryMessenger: messenger)
     }
 
+    func removeListeners() {
+        if let gestureRecognizer = self.gestureRecognizer {
+            mapView.removeGestureRecognizer(gestureRecognizer)
+        }
+    }
+
     private var mapView: MapView
+    private var gestureRecognizer: UIGestureRecognizer?
     private var cancelable: Cancelable?
 
     init(withMapView mapView: MapView) {

@@ -2,6 +2,8 @@ part of mapbox_maps_flutter;
 
 typedef OnPlatformViewCreatedCallback = void Function(int);
 
+final _SuffixesRegistry _suffixesRegistry = _SuffixesRegistry._instance();
+
 class _MapboxMapsPlatform {
   final observers = ArgumentCallbacks<Event>();
   final onStyleLoadedPlatform = ArgumentCallbacks<StyleLoadedEventData>();
@@ -25,7 +27,9 @@ class _MapboxMapsPlatform {
   final onStyleImageUnusedPlatform =
       ArgumentCallbacks<StyleImageUnusedEventData>();
 
+  final int _channelSuffix = _suffixesRegistry.getSuffix();
   late MethodChannel _channel;
+  late BinaryMessenger binaryMessenger;
 
   Future<dynamic> _handleMethodCall(MethodCall call) async {
     try {
@@ -101,8 +105,10 @@ class _MapboxMapsPlatform {
     }
   }
 
-  void initPlatform(int id) {
-    _channel = MethodChannel('plugins.flutter.io/mapbox_maps_$id');
+  void initPlatform() {
+    this.binaryMessenger = ProxyBinaryMessenger(suffix: "/map_$_channelSuffix");
+    _channel = MethodChannel('plugins.flutter.io', const StandardMethodCodec(),
+        this.binaryMessenger);
     _channel.setMethodCallHandler(_handleMethodCall);
   }
 
@@ -110,6 +116,8 @@ class _MapboxMapsPlatform {
       Map<String, dynamic> creationParams,
       OnPlatformViewCreatedCallback onPlatformViewCreated,
       Set<Factory<OneSequenceGestureRecognizer>>? gestureRecognizers) {
+    creationParams['channelSuffix'] = _channelSuffix;
+
     if (defaultTargetPlatform == TargetPlatform.android) {
       return AndroidView(
         viewType: 'plugins.flutter.io/mapbox_maps',
@@ -132,6 +140,7 @@ class _MapboxMapsPlatform {
   }
 
   void dispose() {
+    _suffixesRegistry.releaseSuffix(_channelSuffix);
     _channel.setMethodCallHandler(null);
   }
 
@@ -160,5 +169,51 @@ class _MapboxMapsPlatform {
     } on PlatformException catch (e) {
       return new Future.error(e);
     }
+  }
+
+  Future<dynamic> addGestureListeners() async {
+    try {
+      return _channel.invokeMethod('gesture#add_listeners');
+    } on PlatformException catch (e) {
+      return new Future.error(e);
+    }
+  }
+
+  Future<dynamic> removeGestureListeners() async {
+    try {
+      return _channel.invokeMethod('gesture#remove_listeners');
+    } on PlatformException catch (e) {
+      return new Future.error(e);
+    }
+  }
+}
+
+/// A registry to hold suffixes for Channels.
+///
+class _SuffixesRegistry {
+  _SuffixesRegistry._instance();
+
+  int _suffix = -1;
+  final Set<int> suffixesInUse = {};
+  final Set<int> suffixesAvailable = {};
+
+  int getSuffix() {
+    int suffix;
+
+    if (suffixesAvailable.isEmpty) {
+      _suffix++;
+      suffix = _suffix;
+    } else {
+      suffix = suffixesAvailable.first;
+      suffixesAvailable.remove(suffix);
+    }
+    suffixesInUse.add(suffix);
+
+    return suffix;
+  }
+
+  void releaseSuffix(int suffix) {
+    suffixesInUse.remove(suffix);
+    suffixesAvailable.add(suffix);
   }
 }

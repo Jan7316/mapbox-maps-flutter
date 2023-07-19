@@ -21,6 +21,8 @@ class MapboxMap extends ChangeNotifier {
     this.onMapLongTapListener,
     this.onMapScrollListener,
   }) : _mapboxMapsPlatform = mapboxMapsPlatform {
+    _proxyBinaryMessenger = _mapboxMapsPlatform.binaryMessenger;
+
     annotations = _AnnotationManager(mapboxMapsPlatform: _mapboxMapsPlatform);
     if (onStyleLoadedListener != null) {
       _mapboxMapsPlatform.onStyleLoadedPlatform.add((argument) {
@@ -87,15 +89,7 @@ class MapboxMap extends ChangeNotifier {
         onStyleImageUnusedListener?.call(argument);
       });
     }
-    if (onMapTapListener != null ||
-        onMapLongTapListener != null ||
-        onMapScrollListener != null) {
-      GestureListener.setup(_GestureListener(
-        onMapTapListener: onMapTapListener,
-        onMapLongTapListener: onMapLongTapListener,
-        onMapScrollListener: onMapScrollListener,
-      ));
-    }
+    _setupGestures();
   }
 
   final _MapboxMapsPlatform _mapboxMapsPlatform;
@@ -146,48 +140,61 @@ class MapboxMap extends ChangeNotifier {
   final OnStyleImageUnusedListener? onStyleImageUnusedListener;
 
   /// The currently loaded Style]object.
-  final StyleManager style = StyleManager();
+  late StyleManager style =
+      StyleManager(binaryMessenger: _proxyBinaryMessenger);
 
   /// The interface to set the location puck.
-  final LocationComponentSettingsInterface location =
-      LocationComponentSettingsInterface();
+  late LocationComponentSettingsInterface location =
+      LocationComponentSettingsInterface(
+          binaryMessenger: _proxyBinaryMessenger);
 
-  final _CameraManager _cameraManager = _CameraManager();
-  final _MapInterface _mapInterface = _MapInterface();
-  final _AnimationManager _animationManager = _AnimationManager();
+  late BinaryMessenger _proxyBinaryMessenger;
+
+  late _CameraManager _cameraManager =
+      _CameraManager(binaryMessenger: _proxyBinaryMessenger);
+  late _MapInterface _mapInterface =
+      _MapInterface(binaryMessenger: _proxyBinaryMessenger);
+  late _AnimationManager _animationManager =
+      _AnimationManager(binaryMessenger: _proxyBinaryMessenger);
 
   /// The interface to create and set annotations.
   late final _AnnotationManager annotations;
 
   // Keep Projection visible for users as iOS doesn't include it in MapboxMaps.
   /// The map projection of the style.
-  final Projection projection = Projection();
+  late Projection projection =
+      Projection(binaryMessenger: _proxyBinaryMessenger);
 
   /// The interface to access the gesture settings.
-  final GesturesSettingsInterface gestures = GesturesSettingsInterface();
+  late GesturesSettingsInterface gestures =
+      GesturesSettingsInterface(binaryMessenger: _proxyBinaryMessenger);
 
   /// The interface to set the logo settings.
-  final LogoSettingsInterface logo = LogoSettingsInterface();
+  late LogoSettingsInterface logo =
+      LogoSettingsInterface(binaryMessenger: _proxyBinaryMessenger);
 
   /// The interface to access the compass settings.
-  final CompassSettingsInterface compass = CompassSettingsInterface();
+  late CompassSettingsInterface compass =
+      CompassSettingsInterface(binaryMessenger: _proxyBinaryMessenger);
 
   /// The interface to access the compass settings.
-  final ScaleBarSettingsInterface scaleBar = ScaleBarSettingsInterface();
+  late ScaleBarSettingsInterface scaleBar =
+      ScaleBarSettingsInterface(binaryMessenger: _proxyBinaryMessenger);
 
   /// The interface to access the attribution settings.
-  final AttributionSettingsInterface attribution =
-      AttributionSettingsInterface();
+  late AttributionSettingsInterface attribution =
+      AttributionSettingsInterface(binaryMessenger: _proxyBinaryMessenger);
 
-  final OnMapTapListener? onMapTapListener;
-  final OnMapLongTapListener? onMapLongTapListener;
-  final OnMapScrollListener? onMapScrollListener;
+  OnMapTapListener? onMapTapListener;
+  OnMapLongTapListener? onMapLongTapListener;
+  OnMapScrollListener? onMapScrollListener;
 
   @override
   void dispose() {
     super.dispose();
     _mapboxMapsPlatform.dispose();
     _observersMap.clear();
+    GestureListener.setup(null, binaryMessenger: _proxyBinaryMessenger);
   }
 
   var _observersMap = Map<String, List<Observer>>();
@@ -356,6 +363,7 @@ class MapboxMap extends ChangeNotifier {
   Future<void> dragEnd() => _cameraManager.dragEnd();
 
   /// Gets the size of the map.
+  /// Note : not supported for iOS.
   Future<Size> getSize() => _mapInterface.getSize();
 
   /// Triggers a repaint of the map.
@@ -490,7 +498,7 @@ class MapboxMap extends ChangeNotifier {
       _mapInterface.getResourceOptions();
 
   /// Gets elevation for the given coordinate.
-  /// Note: Elevation is only available for the visible region on the screen.
+  /// Note: Elevation is only available for the visible region on the screen and with terrain enabled.
   Future<double?> getElevation(Map<String?, Object?> coordinate) =>
       _mapInterface.getElevation(coordinate);
 
@@ -582,6 +590,36 @@ class MapboxMap extends ChangeNotifier {
   /// Cancel the ongoing camera animation if there is one.
   Future<void> cancelCameraAnimation() =>
       _animationManager.cancelCameraAnimation();
+
+  void _setupGestures() {
+    if (onMapTapListener != null ||
+        onMapLongTapListener != null ||
+        onMapScrollListener != null) {
+      GestureListener.setup(
+          _GestureListener(
+            onMapTapListener: onMapTapListener,
+            onMapLongTapListener: onMapLongTapListener,
+            onMapScrollListener: onMapScrollListener,
+          ),
+          binaryMessenger: _mapboxMapsPlatform.binaryMessenger);
+      _mapboxMapsPlatform.addGestureListeners();
+    }
+  }
+
+  void setOnMapTapListener(OnMapTapListener? onMapTapListener) {
+    this.onMapTapListener = onMapTapListener;
+    _setupGestures();
+  }
+
+  void setOnMapLongTapListener(OnMapLongTapListener? onMapLongTapListener) {
+    this.onMapLongTapListener = onMapLongTapListener;
+    _setupGestures();
+  }
+
+  void setOnMapMoveListener(OnMapScrollListener? onMapScrollListener) {
+    this.onMapScrollListener = onMapScrollListener;
+    _setupGestures();
+  }
 }
 
 class _GestureListener extends GestureListener {

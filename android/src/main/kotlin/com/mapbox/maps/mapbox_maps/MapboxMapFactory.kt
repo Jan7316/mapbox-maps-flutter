@@ -114,6 +114,8 @@ class MapboxMapFactory(
       }
     }
 
+    val channelSuffix = params["channelSuffix"] as Int
+
     val textureView = params["textureView"] as? Boolean ?: false
     val styleUri = params["styleUri"] as? String ?: Style.MAPBOX_STREETS
     val pluginVersion = params["mapboxPluginVersion"] as String
@@ -125,7 +127,6 @@ class MapboxMapFactory(
       textureView = textureView,
       styleUri = styleUri
     )
-    Logger.d(TAG, "MapInitOptions: $mapInitOptions")
     val eventTypes = params["eventTypes"] as? List<String> ?: listOf()
     return MapboxMapController(
       context,
@@ -133,7 +134,7 @@ class MapboxMapFactory(
       lifecycleProvider,
       eventTypes,
       messenger,
-      viewId,
+      channelSuffix,
       pluginVersion,
     )
   }
